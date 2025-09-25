@@ -1274,8 +1274,45 @@ https://example.com/image.jpg
                 },
             })
         
-        # Special handling for Redtube and similar sites
-        elif any(site in url.lower() for site in ['redtube.com', 'tube8.com', 'youporn.com', 'spankbang.com']):
+        # Special handling for Redtube (broken extractor, needs cookies)
+        elif 'redtube.com' in url.lower():
+            # Create temporary cookies file for Redtube
+            import tempfile
+            cookies_content = """# Netscape HTTP Cookie File
+.redtube.com	TRUE	/	FALSE	1999999999	age_verified	1
+.redtube.com	TRUE	/	FALSE	1999999999	language	en
+.redtube.com	TRUE	/	FALSE	1999999999	content_filter	off"""
+            
+            cookies_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+            cookies_file.write(cookies_content)
+            cookies_file.close()
+            
+            ydl_opts.update({
+                'format': 'best[height<=1080]/best',
+                'cookies': cookies_file.name,
+                'extractor_args': {
+                    'redtube': {
+                        'age_limit': 18,
+                    }
+                },
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Sec-Fetch-User': '?1',
+                    'Cache-Control': 'max-age=0',
+                    'Referer': 'https://www.redtube.com/',
+                },
+            })
+        
+        # Special handling for other tube sites
+        elif any(site in url.lower() for site in ['tube8.com', 'youporn.com', 'spankbang.com']):
             ydl_opts.update({
                 'format': 'best[height<=1080]/best',  # Allow higher quality for these sites
                 'http_headers': {
@@ -1345,6 +1382,14 @@ https://example.com/image.jpg
             
         except Exception as e:
             raise Exception(f"خطا در دانلود ویدیو: {str(e)}")
+        finally:
+            # Clean up cookies file if it was created for Redtube
+            if 'redtube.com' in url.lower() and 'cookies' in ydl_opts:
+                try:
+                    import os
+                    os.unlink(ydl_opts['cookies'])
+                except:
+                    pass
     
     def get_filename_from_response(self, response, url: str) -> str:
         """Extract filename from response headers or URL"""
