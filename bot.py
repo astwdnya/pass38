@@ -15,7 +15,7 @@ from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
 from telegram.error import Conflict, BadRequest, Forbidden
 import yt_dlp
-from .config import (
+from config import (
     BOT_TOKEN,
     BOT_API_BASE_URL,
     BOT_API_BASE_FILE_URL,
