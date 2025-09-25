@@ -1234,6 +1234,9 @@ https://example.com/image.jpg
                 except Exception as e:
                     pass  # Ignore progress update errors
         
+        # Initialize cookies file path for cleanup
+        cookies_file_path = None
+        
         # yt-dlp options
         ydl_opts = {
             'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
@@ -1287,9 +1290,12 @@ https://example.com/image.jpg
             cookies_file.write(cookies_content)
             cookies_file.close()
             
+            # Store cookies file path for cleanup
+            cookies_file_path = cookies_file.name
+            
             ydl_opts.update({
                 'format': 'best[height<=1080]/best',
-                'cookies': cookies_file.name,
+                'cookies': cookies_file_path,
                 'extractor_args': {
                     'redtube': {
                         'age_limit': 18,
@@ -1384,10 +1390,10 @@ https://example.com/image.jpg
             raise Exception(f"خطا در دانلود ویدیو: {str(e)}")
         finally:
             # Clean up cookies file if it was created for Redtube
-            if 'redtube.com' in url.lower() and 'cookies' in ydl_opts:
+            if cookies_file_path:
                 try:
                     import os
-                    os.unlink(ydl_opts['cookies'])
+                    os.unlink(cookies_file_path)
                 except:
                     pass
     
