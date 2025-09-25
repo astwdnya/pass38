@@ -365,13 +365,6 @@ https://example.com/image.jpg
                 if result == (None, None, None):
                     return
                 file_path, filename, file_size = result
-            # Check if it's Rule34.xxx - handle specially
-            elif 'rule34.xxx' in url.lower():
-                print(f"🔞 Detected Rule34.xxx URL, using custom handler: {url}")
-                result = await self.download_rule34_content(url, processing_msg, user.first_name)
-                if result == (None, None, None):
-                    return
-                file_path, filename, file_size = result
             # Check if it's a video site URL that needs yt-dlp
             elif self.is_video_site_url(url):
                 print(f"📹 Detected video site URL, using yt-dlp: {url}")
@@ -684,124 +677,6 @@ https://example.com/image.jpg
                     pass
             raise Exception(error_msg)
     
-    async def download_rule34_content(self, url: str, progress_msg=None, user_name: str = "") -> tuple:
-        """Handle Rule34.xxx downloads by extracting direct media URLs"""
-        try:
-            if progress_msg:
-                await progress_msg.edit_text("🔞 در حال پردازش لینک Rule34...")
-            
-            # Fetch the page content with proper headers
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            }
-            
-            timeout = aiohttp.ClientTimeout(total=30, connect=10)
-            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        raise Exception(f"HTTP {response.status}")
-                    
-                    page_content = await response.text()
-            
-            print(f"📄 Rule34 page content length: {len(page_content)}")
-            
-            # Look for media URLs in the page
-            import re
-            media_url = None
-            
-            # Pattern 1: Look for direct video/image URLs in various formats
-            media_patterns = [
-                # Video patterns
-                r'<video[^>]*src=["\']([^"\']+)["\']',
-                r'<source[^>]*src=["\']([^"\']+)["\']',
-                r'"file_url":\s*"([^"]+)"',
-                r'"sample_url":\s*"([^"]+)"',
-                r'"preview_url":\s*"([^"]+)"',
-                # Image patterns  
-                r'<img[^>]*src=["\']([^"\']*(?:\.jpg|\.jpeg|\.png|\.gif|\.webm|\.mp4)[^"\']*)["\']',
-                # Direct URL patterns
-                r'https?://[^"\s]*rule34[^"\s]*\.(?:jpg|jpeg|png|gif|webm|mp4)',
-                r'https?://[^"\s]*\.(?:jpg|jpeg|png|gif|webm|mp4)',
-            ]
-            
-            for i, pattern in enumerate(media_patterns):
-                matches = re.findall(pattern, page_content, re.IGNORECASE)
-                if matches:
-                    # Filter out thumbnails and small images
-                    for match in matches:
-                        if any(skip in match.lower() for skip in ['thumb', 'preview', 'small', 'icon']):
-                            continue
-                        media_url = match
-                        print(f"✅ Found media URL with pattern {i+1}: {media_url}")
-                        break
-                    if media_url:
-                        break
-            
-            # If no direct media found, try to extract from JavaScript or data attributes
-            if not media_url:
-                js_patterns = [
-                    r'image\s*=\s*["\']([^"\']+)["\']',
-                    r'video\s*=\s*["\']([^"\']+)["\']',
-                    r'src:\s*["\']([^"\']+)["\']',
-                    r'url:\s*["\']([^"\']+)["\']',
-                ]
-                
-                for pattern in js_patterns:
-                    matches = re.findall(pattern, page_content, re.IGNORECASE)
-                    if matches:
-                        media_url = matches[0]
-                        print(f"✅ Found media URL in JavaScript: {media_url}")
-                        break
-            
-            if not media_url:
-                # Try yt-dlp as fallback
-                try:
-                    if progress_msg:
-                        await progress_msg.edit_text("📹 تلاش برای دانلود با yt-dlp...")
-                    return await self.download_video_with_ytdlp(url, progress_msg, user_name)
-                except Exception as e:
-                    print(f"⚠️ yt-dlp fallback failed: {e}")
-                
-                if progress_msg:
-                    await progress_msg.edit_text(
-                        f"🔞 نتوانستم فایل مدیا را از Rule34 استخراج کنم.\n\n"
-                        f"🔗 لینک اصلی:\n{url}\n\n"
-                        f"💡 لطفاً لینک را در مرورگر باز کنید و فایل را مستقیماً دانلود کنید."
-                    )
-                    return None, None, None
-            
-            # Clean up the URL
-            if media_url.startswith('//'):
-                media_url = 'https:' + media_url
-            elif media_url.startswith('/'):
-                media_url = 'https://rule34.xxx' + media_url
-            
-            if progress_msg:
-                await progress_msg.edit_text("⏬ در حال دانلود فایل از Rule34...")
-            
-            # Download the media file
-            return await self.download_file(media_url, progress_msg, user_name)
-            
-        except Exception as e:
-            error_msg = f"خطا در پردازش Rule34: {str(e)}"
-            print(f"❌ {error_msg}")
-            if progress_msg:
-                try:
-                    await progress_msg.edit_text(
-                        f"🔞 خطا در پردازش Rule34.\n\n"
-                        f"🔗 لینک اصلی:\n{url}\n\n"
-                        f"💡 لطفاً لینک را در مرورگر باز کنید."
-                    )
-                    return None, None, None
-                except:
-                    pass
-            raise Exception(error_msg)
-    
     async def download_qombol_content(self, url: str, progress_msg=None, user_name: str = "") -> tuple:
         """Download content from qombol.com by extracting video URLs from the page"""
         import re
@@ -1075,7 +950,35 @@ https://example.com/image.jpg
             'no_warnings': True,
             'socket_timeout': 30,
             'retries': 3,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            },
         }
+        
+        # Special handling for Rule34.xxx
+        if 'rule34.xxx' in url.lower():
+            ydl_opts.update({
+                'extractor_args': {
+                    'generic': {
+                        'force_generic_extractor': True,
+                    }
+                },
+                'format': 'best',  # Don't limit quality for Rule34
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                    'Referer': 'https://rule34.xxx/',
+                },
+            })
         
         try:
             # Run yt-dlp in executor to avoid blocking
