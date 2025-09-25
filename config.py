@@ -36,6 +36,9 @@ REDDIT_CLIENT_ID = os.getenv('REDDIT_CLIENT_ID')
 REDDIT_CLIENT_SECRET = os.getenv('REDDIT_CLIENT_SECRET')
 # Optional: allow override of redirect URI via environment; default matches Reddit app config
 REDDIT_REDIRECT_URI = os.getenv('REDDIT_REDIRECT_URI', 'http://localhost:8080')
+# Optional: PRAW script-mode credentials (bypass manual OAuth)
+REDDIT_USERNAME = os.getenv('REDDIT_USERNAME')
+REDDIT_PASSWORD = os.getenv('REDDIT_PASSWORD')
 
 # Authorization settings
 _auth_users_raw = os.getenv('AUTHORIZED_USERS', '').strip()

@@ -26,6 +26,8 @@ from config import (
     REDDIT_CLIENT_ID,
     REDDIT_CLIENT_SECRET,
     REDDIT_REDIRECT_URI,
+    REDDIT_USERNAME,
+    REDDIT_PASSWORD,
 )
 try:
     from uploader import upload_to_bridge
@@ -115,7 +117,13 @@ class TelegramDownloadBot:
         # Initialize Reddit authentication
         self.reddit_auth = None
         if RedditAuth and REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET:
-            self.reddit_auth = RedditAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_REDIRECT_URI)
+            self.reddit_auth = RedditAuth(
+                REDDIT_CLIENT_ID,
+                REDDIT_CLIENT_SECRET,
+                REDDIT_REDIRECT_URI,
+                username=REDDIT_USERNAME,
+                password=REDDIT_PASSWORD,
+            )
         
         # Store pending Reddit authentications
         self.pending_reddit_auth = {}
@@ -223,9 +231,21 @@ https://example.com/image.jpg
             await update.message.reply_text("❌ Reddit API تنظیم نشده است.")
             return
         
+        # If running in PRAW script mode, no user auth is needed
+        if getattr(self.reddit_auth, "is_script_mode", False):
+            await update.message.reply_text(
+                "✅ احراز هویت Reddit قبلاً با PRAW (script mode) انجام شده است.\n"
+                "لینک‌های Reddit را مستقیم ارسال کنید تا پردازش شوند."
+            )
+            return
+        
         # Generate auth URL
         state = f"user_{user_id}_{int(time.time())}"
         auth_url = self.reddit_auth.get_auth_url(state)
+        compact_url = auth_url.replace('/authorize', '/authorize.compact')
+        # Fallback: temporary duration (no refresh token) for debugging "Invalid request" cases
+        temp_url = self.reddit_auth.get_auth_url(state, duration="temporary")
+        temp_compact_url = temp_url.replace('/authorize', '/authorize.compact')
         
         # Store pending auth
         self.pending_reddit_auth[user_id] = {
@@ -233,17 +253,34 @@ https://example.com/image.jpg
             'timestamp': time.time()
         }
         
-        keyboard = [[InlineKeyboardButton("🔑 ورود به Reddit", url=auth_url)]]
+        keyboard = [
+            [InlineKeyboardButton("🔑 ورود به Reddit (دائم)", url=auth_url)],
+            [InlineKeyboardButton("📱 نسخه موبایل (دائم)", url=compact_url)],
+            [InlineKeyboardButton("🧪 تست موقت (Temporary)", url=temp_url)],
+            [InlineKeyboardButton("📱 تست موقت موبایل", url=temp_compact_url)],
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        # Log helpful debug info
+        try:
+            print(f"🔑 Reddit OAuth client_id: {REDDIT_CLIENT_ID}")
+            print(f"🔑 Reddit OAuth redirect_uri: {self.reddit_auth.redirect_uri}")
+            print(f"🔗 Reddit OAuth URL (permanent): {auth_url}")
+            print(f"🔗 Reddit OAuth URL (temporary):  {temp_url}")
+        except Exception:
+            pass
+
         await update.message.reply_text(
-            "🔴 برای دسترسی به Reddit، لطفاً مراحل زیر را دنبال کنید:\n\n"
-            "1️⃣ روی دکمه زیر کلیک کنید\n"
-            "2️⃣ وارد حساب Reddit خود شوید\n"
-            "3️⃣ روی \"Allow\" کلیک کنید\n"
-            "4️⃣ بعد از redirect، کد موجود در URL را کپی کنید\n"
-            "5️⃣ کد را برای من ارسال کنید (یا می‌توانید کل آدرس صفحه را هم ارسال کنید)\n\n"
-            "💡 اگر به صفحه خطا رسیدید، فقط کد موجود در آدرس مرورگر را کپی کنید (یا کل آدرس را بفرستید)",
+            (
+                "🔴 برای دسترسی به Reddit، لطفاً مراحل زیر را دنبال کنید:\n\n"
+                "1️⃣ روی یکی از دکمه‌های زیر کلیک کنید\n"
+                "2️⃣ وارد حساب Reddit خود شوید\n"
+                "3️⃣ روی \"Allow\" کلیک کنید\n"
+                "4️⃣ بعد از redirect، کد موجود در URL را کپی کنید\n"
+                "5️⃣ کد را برای من ارسال کنید (یا می‌توانید کل آدرس صفحه را هم ارسال کنید)\n\n"
+                "💡 اگر به صفحه خطا رسیدید، می‌توانید این لینک را در مرورگر کپی کنید:\n"
+                f"{auth_url}"
+            ),
             reply_markup=reply_markup
         )
     
@@ -546,9 +583,21 @@ https://example.com/image.jpg
                     # Try to get post data using Reddit API
                     post_data = await self.reddit_auth.get_post_data(url)
                     
-                    if post_data and post_data.get('is_video'):
-                        # Extract video URL from Reddit API response
-                        video_url = post_data.get('media', {}).get('reddit_video', {}).get('fallback_url')
+                    if post_data:
+                        # Extract video URL from various possible fields
+                        video_url = None
+                        if post_data.get('is_video'):
+                            video_url = (
+                                post_data.get('media', {}).get('reddit_video', {}).get('fallback_url')
+                                or post_data.get('secure_media', {}).get('reddit_video', {}).get('fallback_url')
+                            )
+                        if not video_url:
+                            # Some posts expose preview.reddit_video_preview
+                            preview = post_data.get('preview') or {}
+                            if isinstance(preview, dict):
+                                video_url = (
+                                    preview.get('reddit_video_preview', {}) or {}
+                                ).get('fallback_url')
                         
                         if video_url:
                             if progress_msg:

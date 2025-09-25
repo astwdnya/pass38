@@ -3,35 +3,87 @@ import aiohttp
 import base64
 import urllib.parse
 from typing import Optional, Dict, Any
+import praw
 
 class RedditAuth:
-    def __init__(self, client_id: str, client_secret: str, redirect_uri: str = "http://localhost:8080"):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        redirect_uri: str = "http://localhost:8080",
+        username: str | None = None,
+        password: str | None = None,
+    ):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.redirect_uri = redirect_uri
+        # Normalize redirect URI (trim spaces, remove trailing slash)
+        self.redirect_uri = (redirect_uri or "").strip()
+        if self.redirect_uri.endswith('/'):
+            self.redirect_uri = self.redirect_uri[:-1]
         self.access_token = None
         self.refresh_token = None
+        self.username = username
+        self.password = password
+        self.reddit = None
+        # Script mode if username/password present
+        self.is_script_mode = bool(self.username and self.password)
+
+        if self.is_script_mode:
+            try:
+                self.reddit = praw.Reddit(
+                    client_id=self.client_id,
+                    client_secret=self.client_secret,
+                    user_agent="TelegramDownloadBot/1.0 (PRAW script mode)",
+                    username=self.username,
+                    password=self.password,
+                )
+                # Simple validation call
+                _ = self.reddit.user.me()
+                # Mark as authorized
+                self.access_token = "praw_authorized"
+                print("✅ PRAW script-mode authenticated successfully (username/password)")
+            except Exception as e:
+                print(f"❌ Failed to initialize PRAW script-mode: {e}")
         
-    def get_auth_url(self, state: str = "random_state") -> str:
-        """Generate Reddit OAuth authorization URL"""
-        params = {
-            'client_id': self.client_id,
-            'response_type': 'code',
-            'state': state,
-            'redirect_uri': self.redirect_uri,
-            'duration': 'permanent',
-            'scope': 'read'
-        }
-        
-        base_url = "https://www.reddit.com/api/v1/authorize"
-        return f"{base_url}?{urllib.parse.urlencode(params)}"
+    def get_auth_url(self, state: str = "random_state", duration: str = "permanent") -> str:
+        """Generate Reddit OAuth authorization URL using PRAW.
+        If running in script mode (username/password), no auth URL is required.
+        """
+        if self.is_script_mode:
+            return ""
+        try:
+            # Initialize PRAW client for auth URL generation
+            self.reddit = praw.Reddit(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                redirect_uri=self.redirect_uri,
+                user_agent="TelegramDownloadBot/1.0 (OAuth via PRAW)"
+            )
+            scopes = ["identity", "read"]
+            return self.reddit.auth.url(scopes=scopes, state=state, duration=duration)
+        except Exception:
+            # Fallback to manual URL building if PRAW URL generation fails for any reason
+            params = {
+                'client_id': self.client_id,
+                'response_type': 'code',
+                'state': state,
+                'redirect_uri': self.redirect_uri,
+                'duration': duration,
+                'scope': 'identity read'
+            }
+            base_url = "https://www.reddit.com/api/v1/authorize"
+            return f"{base_url}?{urllib.parse.urlencode(params)}"
     
     async def exchange_code_for_token(self, code: str) -> bool:
-        """Exchange authorization code for access token"""
+        """Exchange authorization code for tokens using PRAW.
+        In script mode, this is not necessary and returns True.
+        """
+        if self.is_script_mode:
+            # Already authenticated via username/password
+            return bool(self.reddit)
         try:
             # Accept both raw code and full redirect URL pasted by the user
             raw_input = (code or "").strip()
-            # If the input is a full URL, parse out the `code` param
             if raw_input.startswith("http://") or raw_input.startswith("https://"):
                 try:
                     parsed = urllib.parse.urlparse(raw_input)
@@ -41,7 +93,6 @@ class RedditAuth:
                         code = url_code
                 except Exception:
                     pass
-            # If the input contains `code=...` (but not necessarily a full URL), parse it
             elif "code=" in raw_input:
                 try:
                     pseudo_qs = urllib.parse.parse_qs(raw_input.replace("?", "&"))
@@ -50,79 +101,68 @@ class RedditAuth:
                         code = qs_code
                 except Exception:
                     pass
-            # Clean the code - remove any URL parameters if present
+            # Clean simple artifacts
             if '?' in code:
                 code = code.split('?')[0]
             if '&' in code:
                 code = code.split('&')[0]
-            
-            # Prepare credentials
-            credentials = f"{self.client_id}:{self.client_secret}"
-            encoded_credentials = base64.b64encode(credentials.encode()).decode()
-            
-            headers = {
-                'Authorization': f'Basic {encoded_credentials}',
-                'User-Agent': 'TelegramDownloadBot/1.0',
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-            
-            data = {
-                'grant_type': 'authorization_code',
-                'code': code.strip(),
-                'redirect_uri': self.redirect_uri
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    'https://www.reddit.com/api/v1/access_token',
-                    headers=headers,
-                    data=data
-                ) as response:
-                    if response.status == 200:
-                        token_data = await response.json()
-                        self.access_token = token_data.get('access_token')
-                        self.refresh_token = token_data.get('refresh_token')
-                        return True
-                    else:
-                        print(f"❌ Token exchange failed: {response.status}")
-                        response_text = await response.text()
-                        print(f"❌ Response: {response_text}")
-                        return False
-                        
+
+            # Ensure PRAW client exists
+            if not hasattr(self, 'reddit') or self.reddit is None:
+                self.reddit = praw.Reddit(
+                    client_id=self.client_id,
+                    client_secret=self.client_secret,
+                    redirect_uri=self.redirect_uri,
+                    user_agent="TelegramDownloadBot/1.0 (OAuth via PRAW)"
+                )
+
+            refresh_token = self.reddit.auth.authorize(code.strip())
+            # If duration is temporary, refresh_token can be None
+            self.refresh_token = refresh_token
+            # Mark as authorized for our bot logic
+            self.access_token = "praw_authorized"
+            return True
+
         except Exception as e:
-            print(f"❌ Error exchanging code for token: {e}")
+            print(f"❌ Error exchanging code via PRAW: {e}")
             return False
     
     async def get_post_data(self, post_url: str) -> Optional[Dict[Any, Any]]:
-        """Get Reddit post data using API"""
-        if not self.access_token:
+        """Get Reddit post data using PRAW"""
+        if not self.is_script_mode and not self.access_token and not self.refresh_token:
             return None
-            
         try:
-            # Extract post ID from URL
-            post_id = self._extract_post_id(post_url)
-            if not post_id:
-                return None
-            
-            headers = {
-                'Authorization': f'Bearer {self.access_token}',
-                'User-Agent': 'TelegramDownloadBot/1.0'
+            # Ensure we have an authenticated PRAW instance (use refresh_token if available)
+            if self.is_script_mode and self.reddit:
+                pass  # already initialized
+            elif self.refresh_token:
+                self.reddit = praw.Reddit(
+                    client_id=self.client_id,
+                    client_secret=self.client_secret,
+                    refresh_token=self.refresh_token,
+                    user_agent="TelegramDownloadBot/1.0 (OAuth via PRAW)"
+                )
+            elif not hasattr(self, 'reddit') or self.reddit is None:
+                self.reddit = praw.Reddit(
+                    client_id=self.client_id,
+                    client_secret=self.client_secret,
+                    redirect_uri=self.redirect_uri,
+                    user_agent="TelegramDownloadBot/1.0 (OAuth via PRAW)"
+                )
+
+            submission = self.reddit.submission(url=post_url)
+            # Build a response compatible with previous code expectations
+            data: Dict[str, Any] = {
+                'is_video': bool(getattr(submission, 'is_video', False)),
+                'media': getattr(submission, 'media', None) or {},
+                'secure_media': getattr(submission, 'secure_media', None) or {},
+                'id': submission.id,
+                'permalink': submission.permalink,
+                'title': submission.title,
             }
-            
-            # Get post data from Reddit API
-            api_url = f"https://oauth.reddit.com/comments/{post_id}"
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return data[0]['data']['children'][0]['data'] if data else None
-                    else:
-                        print(f"❌ Reddit API request failed: {response.status}")
-                        return None
-                        
+            return data
         except Exception as e:
-            print(f"❌ Error getting Reddit post data: {e}")
+            print(f"❌ Error getting Reddit post via PRAW: {e}")
             return None
     
     def _extract_post_id(self, url: str) -> Optional[str]:
@@ -139,38 +179,18 @@ class RedditAuth:
             return None
     
     async def refresh_access_token(self) -> bool:
-        """Refresh the access token using refresh token"""
+        """Recreate PRAW client using stored refresh token"""
         if not self.refresh_token:
             return False
-            
         try:
-            credentials = f"{self.client_id}:{self.client_secret}"
-            encoded_credentials = base64.b64encode(credentials.encode()).decode()
-            
-            headers = {
-                'Authorization': f'Basic {encoded_credentials}',
-                'User-Agent': 'TelegramDownloadBot/1.0',
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-            
-            data = {
-                'grant_type': 'refresh_token',
-                'refresh_token': self.refresh_token
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    'https://www.reddit.com/api/v1/access_token',
-                    headers=headers,
-                    data=data
-                ) as response:
-                    if response.status == 200:
-                        token_data = await response.json()
-                        self.access_token = token_data.get('access_token')
-                        return True
-                    else:
-                        return False
-                        
+            self.reddit = praw.Reddit(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                refresh_token=self.refresh_token,
+                user_agent="TelegramDownloadBot/1.0 (OAuth via PRAW)"
+            )
+            self.access_token = "praw_authorized"
+            return True
         except Exception as e:
-            print(f"❌ Error refreshing token: {e}")
+            print(f"❌ Error refreshing PRAW client: {e}")
             return False
