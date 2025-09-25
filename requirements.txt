@@ -1,0 +1,7 @@
+python-telegram-bot==21.6
+aiohttp==3.9.1
+python-dotenv==1.0.0
+flask==3.0.0
+pyrogram==2.0.106
+tgcrypto==1.2.5
+yt-dlp==2023.12.30

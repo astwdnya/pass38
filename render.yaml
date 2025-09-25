@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: telegram-download-bot
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: oregon
+    envVars:
+      - key: BOT_TOKEN
+        value: "7675664254:AAHL7QhPonc47z0QKRFnB5p_L15SRiLBddc"
+      - key: API_ID
+        value: "2040"
+      - key: API_HASH
+        value: "b18441a1ff607e10a989891a5462e627"
+      - key: TELEGRAM_API_ID
+        value: "2040"
+      - key: TELEGRAM_API_HASH
+        value: "b18441a1ff607e10a989891a5462e627"
+      - key: AUTHORIZED_USERS
+        value: "818185073,6936101187,7972834913"
+      - key: ALLOW_ALL
+        value: "false"
+      - key: HEALTH_PORT
+        value: "10000"
+      - key: MAX_FILE_SIZE_GB
+        value: "2"
+      - key: CLEANUP_DELAY_SECONDS
+        value: "20"
+    healthCheckPath: /health
