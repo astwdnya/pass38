@@ -8,11 +8,13 @@ import os
 import sys
 import logging
 from pathlib import Path
-
 # Add the tgscmr directory to Python path
 current_dir = Path(__file__).parent
 tgscmr_dir = current_dir / "tgscmr"
 sys.path.insert(0, str(tgscmr_dir))
+
+from telegram.ext import Application
+from tgscmr.config import BOT_TOKEN
 
 # Configure logging for production
 logging.basicConfig(
@@ -50,7 +52,7 @@ def main():
         )
         
         # Create bot instance
-        from bot import TelegramDownloadBot
+        from tgscmr.bot import TelegramDownloadBot
         bot = TelegramDownloadBot()
         logger.info("Bot instance created successfully")
         health_server.update_bot_status("created")
