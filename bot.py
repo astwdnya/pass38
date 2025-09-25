@@ -236,11 +236,13 @@ https://example.com/image.jpg
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "🔴 برای دسترسی به Reddit، لطفاً وارد حساب کاربری خود شوید:\n\n"
+            "🔴 برای دسترسی به Reddit، لطفاً مراحل زیر را دنبال کنید:\n\n"
             "1️⃣ روی دکمه زیر کلیک کنید\n"
-            "2️⃣ وارد Reddit شوید\n"
-            "3️⃣ اجازه دسترسی را بدهید\n"
-            "4️⃣ کد تایید را برای من ارسال کنید",
+            "2️⃣ وارد حساب Reddit خود شوید\n"
+            "3️⃣ روی \"Allow\" کلیک کنید\n"
+            "4️⃣ بعد از redirect، کد موجود در URL را کپی کنید\n"
+            "5️⃣ کد را برای من ارسال کنید\n\n"
+            "💡 اگر به صفحه خطا رسیدید، فقط کد موجود در آدرس مرورگر را کپی کنید",
             reply_markup=reply_markup
         )
     

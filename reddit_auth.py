@@ -29,6 +29,12 @@ class RedditAuth:
     async def exchange_code_for_token(self, code: str) -> bool:
         """Exchange authorization code for access token"""
         try:
+            # Clean the code - remove any URL parameters if present
+            if '?' in code:
+                code = code.split('?')[0]
+            if '&' in code:
+                code = code.split('&')[0]
+            
             # Prepare credentials
             credentials = f"{self.client_id}:{self.client_secret}"
             encoded_credentials = base64.b64encode(credentials.encode()).decode()
@@ -41,7 +47,7 @@ class RedditAuth:
             
             data = {
                 'grant_type': 'authorization_code',
-                'code': code,
+                'code': code.strip(),
                 'redirect_uri': self.redirect_uri
             }
             
@@ -58,6 +64,8 @@ class RedditAuth:
                         return True
                     else:
                         print(f"❌ Token exchange failed: {response.status}")
+                        response_text = await response.text()
+                        print(f"❌ Response: {response_text}")
                         return False
                         
         except Exception as e:
