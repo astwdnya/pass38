@@ -421,7 +421,17 @@ https://example.com/image.jpg
             'xvv1deos.com', 'www.xvv1deos.com',
             'motherless.com', 'www.motherless.com',
             'rule34.xxx', 'www.rule34.xxx',
-            'luxuretv.com', 'www.luxuretv.com', 'en.luxuretv.com'
+            # Working porn sites with yt-dlp support
+            'redtube.com', 'www.redtube.com',
+            'tube8.com', 'www.tube8.com',
+            'youporn.com', 'www.youporn.com',
+            'spankbang.com', 'www.spankbang.com',
+            'eporner.com', 'www.eporner.com',
+            'txxx.com', 'www.txxx.com',
+            'beeg.com', 'www.beeg.com',
+            'tnaflix.com', 'www.tnaflix.com',
+            'empflix.com', 'www.empflix.com',
+            'drtuber.com', 'www.drtuber.com'
         ]
         try:
             parsed = urlparse(url.lower())
@@ -1260,30 +1270,6 @@ https://example.com/image.jpg
                 },
             })
         
-        # Special handling for LuxureTV
-        elif 'luxuretv.com' in url.lower():
-            ydl_opts.update({
-                'format': 'best',  # Don't limit quality
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                    'Sec-Fetch-Dest': 'document',
-                    'Sec-Fetch-Mode': 'navigate',
-                    'Sec-Fetch-Site': 'none',
-                    'Sec-Fetch-User': '?1',
-                    'Cache-Control': 'max-age=0',
-                    'Referer': 'https://en.luxuretv.com/',
-                },
-                'extractor_args': {
-                    'generic': {
-                        'force_generic_extractor': True,
-                    }
-                },
-            })
         
         try:
             # Run yt-dlp in executor to avoid blocking
