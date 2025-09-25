@@ -27,6 +27,7 @@ class RedditAuth:
         self.reddit = None
         # Script mode if username/password present
         self.is_script_mode = bool(self.username and self.password)
+        self.is_read_only = False
 
         if self.is_script_mode:
             try:
@@ -45,11 +46,26 @@ class RedditAuth:
             except Exception as e:
                 print(f"❌ Failed to initialize PRAW script-mode: {e}")
         
+        # Fallback: try read-only mode if not authenticated
+        if not self.reddit:
+            try:
+                self.reddit = praw.Reddit(
+                    client_id=self.client_id,
+                    client_secret=self.client_secret,
+                    user_agent="TelegramDownloadBot/1.0 (PRAW read-only)",
+                )
+                self.reddit.read_only = True
+                self.is_read_only = True
+                self.access_token = "praw_read_only"
+                print("ℹ️ Using PRAW in read-only mode (no user auth)")
+            except Exception as e:
+                print(f"❌ Failed to initialize PRAW read-only: {e}")
+        
     def get_auth_url(self, state: str = "random_state", duration: str = "permanent") -> str:
         """Generate Reddit OAuth authorization URL using PRAW.
         If running in script mode (username/password), no auth URL is required.
         """
-        if self.is_script_mode:
+        if self.is_script_mode or self.is_read_only:
             return ""
         try:
             # Initialize PRAW client for auth URL generation
@@ -78,7 +94,7 @@ class RedditAuth:
         """Exchange authorization code for tokens using PRAW.
         In script mode, this is not necessary and returns True.
         """
-        if self.is_script_mode:
+        if self.is_script_mode or self.is_read_only:
             # Already authenticated via username/password
             return bool(self.reddit)
         try:
@@ -129,11 +145,11 @@ class RedditAuth:
     
     async def get_post_data(self, post_url: str) -> Optional[Dict[Any, Any]]:
         """Get Reddit post data using PRAW"""
-        if not self.is_script_mode and not self.access_token and not self.refresh_token:
+        if not (self.reddit or self.access_token or self.refresh_token):
             return None
         try:
             # Ensure we have an authenticated PRAW instance (use refresh_token if available)
-            if self.is_script_mode and self.reddit:
+            if (self.is_script_mode or self.is_read_only) and self.reddit:
                 pass  # already initialized
             elif self.refresh_token:
                 self.reddit = praw.Reddit(
@@ -194,3 +210,7 @@ class RedditAuth:
         except Exception as e:
             print(f"❌ Error refreshing PRAW client: {e}")
             return False
+
+    def is_available(self) -> bool:
+        """Return True if we have any usable Reddit client/context."""
+        return bool(self.reddit or self.access_token)

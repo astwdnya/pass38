@@ -231,8 +231,8 @@ https://example.com/image.jpg
             await update.message.reply_text("❌ Reddit API تنظیم نشده است.")
             return
         
-        # If running in PRAW script mode, no user auth is needed
-        if getattr(self.reddit_auth, "is_script_mode", False):
+        # If running in PRAW script/read-only mode, no user auth is needed
+        if getattr(self.reddit_auth, "is_script_mode", False) or getattr(self.reddit_auth, "is_read_only", False):
             await update.message.reply_text(
                 "✅ احراز هویت Reddit قبلاً با PRAW (script mode) انجام شده است.\n"
                 "لینک‌های Reddit را مستقیم ارسال کنید تا پردازش شوند."
@@ -571,14 +571,37 @@ https://example.com/image.jpg
             print(f"❌ Error handling Instagram: {e}")
             raise Exception(f"خطا در پردازش Instagram: {str(e)}")
     
+    async def resolve_reddit_url(self, url: str) -> str:
+        """Resolve Reddit short/share URLs (e.g., /s/ or redd.it) to the canonical post URL"""
+        try:
+            timeout = aiohttp.ClientTimeout(total=15, connect=5)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, allow_redirects=True) as resp:
+                    final_url = str(resp.url)
+                    return final_url or url
+        except Exception as e:
+            print(f"⚠️ Could not resolve Reddit URL redirect: {e}")
+            return url
+
     async def download_reddit_content(self, url: str, progress_msg=None, user_name: str = "") -> tuple:
         """Handle Reddit downloads using API when authenticated"""
         try:
             if progress_msg:
                 await progress_msg.edit_text("🔴 در حال پردازش لینک Reddit...")
+            original_url = url
+            # Resolve Reddit share/short URLs
+            if '/s/' in url or 'redd.it' in url.lower():
+                resolved = await self.resolve_reddit_url(url)
+                if resolved and resolved != url:
+                    url = resolved
+                    if progress_msg:
+                        try:
+                            await progress_msg.edit_text("🔴 در حال پردازش لینک Reddit (اصلاح ریدایرکت)...")
+                        except:
+                            pass
             
             # Check if we have Reddit API access
-            if self.reddit_auth and self.reddit_auth.access_token:
+            if self.reddit_auth and getattr(self.reddit_auth, 'is_available', None) and self.reddit_auth.is_available():
                 try:
                     # Try to get post data using Reddit API
                     post_data = await self.reddit_auth.get_post_data(url)
@@ -606,6 +629,14 @@ https://example.com/image.jpg
                             # Download the video file directly
                             return await self.download_file(video_url, progress_msg, user_name)
                     
+                    # Try yt-dlp as a fallback even if API did not return video
+                    try:
+                        if progress_msg:
+                            await progress_msg.edit_text("📹 تلاش برای دانلود با yt-dlp...")
+                        return await self.download_video_with_ytdlp(url, progress_msg, user_name)
+                    except Exception as e:
+                        print(f"⚠️ yt-dlp fallback failed: {e}")
+
                     # If not a video or no video URL found, provide link
                     if progress_msg:
                         await progress_msg.edit_text(
@@ -619,13 +650,12 @@ https://example.com/image.jpg
                     print(f"⚠️ Reddit API failed: {api_error}")
                     # Fall through to auth message
             
-            # No authentication or API failed - request authentication
+            # No authentication or API failed - avoid asking user to authenticate
             if progress_msg:
                 await progress_msg.edit_text(
-                    f"🔴 برای دانلود از Reddit نیاز به احراز هویت دارید.\n\n"
-                    f"🔗 لینک اصلی:\n{url}\n\n"
-                    f"🔑 برای احراز هویت دستور /reddit_auth را ارسال کنید\n\n"
-                    f"💡 یا لینک را در مرورگر باز کنید."
+                    f"🔴 در حال حاضر امکان دانلود مستقیم از Reddit فراهم نشد.\n\n"
+                    f"🔗 لینک:\n{url}\n\n"
+                    f"💡 لطفاً لینک اصلی پست (نه share /s/) را ارسال کنید یا بعداً دوباره تلاش کنید."
                 )
                 return None, None, None
                 
