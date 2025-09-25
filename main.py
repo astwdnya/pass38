@@ -14,7 +14,6 @@ tgscmr_dir = current_dir / "tgscmr"
 sys.path.insert(0, str(tgscmr_dir))
 
 from telegram.ext import Application
-from tgscmr.config import BOT_TOKEN
 
 # Configure logging for production
 logging.basicConfig(
@@ -39,20 +38,11 @@ def main():
         health_server.start()
         health_server.update_bot_status("initializing")
         
-        # Create and start the application with better timeout settings
-        application = (
-            Application.builder()
-            .token(BOT_TOKEN)
-            .read_timeout(30)
-            .write_timeout(30)
-            .connect_timeout(30)
-            .pool_timeout(30)
-            .get_updates_read_timeout(30)
-            .build()
-        )
+        # Import after path setup
+        from config import BOT_TOKEN
+        from bot import TelegramDownloadBot
         
         # Create bot instance
-        from tgscmr.bot import TelegramDownloadBot
         bot = TelegramDownloadBot()
         logger.info("Bot instance created successfully")
         health_server.update_bot_status("created")
