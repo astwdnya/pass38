@@ -5,7 +5,7 @@ import urllib.parse
 from typing import Optional, Dict, Any
 
 class RedditAuth:
-    def __init__(self, client_id: str, client_secret: str, redirect_uri: str = "http://localhost:8080/"):
+    def __init__(self, client_id: str, client_secret: str, redirect_uri: str = "http://localhost:8080"):
         self.client_id = client_id
         self.client_secret = client_secret
         self.redirect_uri = redirect_uri
