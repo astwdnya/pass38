@@ -165,16 +165,15 @@ class TelegramDownloadBot:
                 f"🚫 دسترسی شما مجاز نیست.\nشناسه شما: {user.id}\nاز ادمین بخواهید شما را به لیست مجاز اضافه کند یا موقتاً ALLOW_ALL را فعال کند."
             )
             return
-        
         welcome_message = """
-🤖 سلام! من ربات دانلود فایل و ویدیو هستم
+        سلام! من ربات دانلود فایل و ویدیو هستم
 
-لینک مستقیم دانلود فایل یا لینک ویدیو خودتون رو برام بفرستید تا براتون دانلود کنم و ارسال کنم.
+        لینک مستقیم دانلود فایل یا لینک ویدیو خودتون رو برام بفرستید تا براتون دانلود کنم و ارسال کنم.
 
-🎬 پشتیبانی از سایت‌های ویدیو: YouTube, Por*hub, Xvideos, Rule34 و...
-📁 پشتیبانی از لینک‌های مستقیم دانلود
+        پشتیبانی از سایت‌های ویدیو: YouTube, Pornhub, Xvideos, LuxureTV و...
+        پشتیبانی از لینک‌های مستقیم دانلود
 
-برای راهنمایی /help رو بزنید.
+        برای راهنمایی /help رو بزنید.
         """
         await update.message.reply_text(welcome_message)
         print(f"✅ Welcome message sent to {user.first_name}")
@@ -204,6 +203,7 @@ class TelegramDownloadBot:
 • P*rn300
 • Xvv1deos
 • Rule34.xxx
+• LuxureTV
 
 📁 لینک‌های مستقیم دانلود:
 • تمام فرمت‌های فایل
@@ -214,6 +214,7 @@ https://www.pornhub.com/view_video.php?viewkey=...
 https://www.porn300.com/video/title/embed/
 https://www.xvv1deos.com/video.id/title
 https://rule34.xxx/index.php?page=post&s=view&id=...
+https://en.luxuretv.com/videos/video-title-12345.html
 https://example.com/file.pdf
 https://example.com/image.jpg
         """
@@ -365,6 +366,13 @@ https://example.com/image.jpg
                 if result == (None, None, None):
                     return
                 file_path, filename, file_size = result
+            # Check if it's Rule34.xxx - handle specially to bypass captcha
+            elif 'rule34.xxx' in url.lower():
+                print(f"🔞 Detected Rule34.xxx URL, using captcha bypass handler: {url}")
+                result = await self.download_rule34_bypass_captcha(url, processing_msg, user.first_name)
+                if result == (None, None, None):
+                    return
+                file_path, filename, file_size = result
             # Check if it's a video site URL that needs yt-dlp
             elif self.is_video_site_url(url):
                 print(f"📹 Detected video site URL, using yt-dlp: {url}")
@@ -412,7 +420,8 @@ https://example.com/image.jpg
             'porn300.com', 'www.porn300.com',
             'xvv1deos.com', 'www.xvv1deos.com',
             'motherless.com', 'www.motherless.com',
-            'rule34.xxx', 'www.rule34.xxx'
+            'rule34.xxx', 'www.rule34.xxx',
+            'luxuretv.com', 'www.luxuretv.com', 'en.luxuretv.com'
         ]
         try:
             parsed = urlparse(url.lower())
@@ -676,6 +685,277 @@ https://example.com/image.jpg
                 except:
                     pass
             raise Exception(error_msg)
+    
+    async def download_rule34_bypass_captcha(self, url: str, progress_msg=None, user_name: str = "") -> tuple:
+        """Handle Rule34.xxx downloads with captcha bypass techniques"""
+        try:
+            if progress_msg:
+                await progress_msg.edit_text("🔞 در حال دور زدن محافظت‌های Rule34...")
+            
+            # Method 1: Try with session and cookies to simulate browser behavior
+            import aiohttp
+            import asyncio
+            import time
+            import random
+            
+            # Create a persistent session with browser-like behavior
+            jar = aiohttp.CookieJar()
+            timeout = aiohttp.ClientTimeout(total=60, connect=30)
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
+            }
+            
+            async with aiohttp.ClientSession(
+                timeout=timeout, 
+                headers=headers, 
+                cookie_jar=jar,
+                connector=aiohttp.TCPConnector(ssl=False)
+            ) as session:
+                
+                # Step 1: Visit homepage first to get cookies
+                try:
+                    if progress_msg:
+                        await progress_msg.edit_text("🔞 مرحله 1: دریافت کوکی‌های اولیه...")
+                    
+                    async with session.get('https://rule34.xxx/') as resp:
+                        homepage_content = await resp.text()
+                        print(f"📄 Homepage status: {resp.status}")
+                        
+                    # Wait a bit to simulate human behavior
+                    await asyncio.sleep(random.uniform(2, 4))
+                    
+                except Exception as e:
+                    print(f"⚠️ Homepage visit failed: {e}")
+                
+                # Step 2: Try to access the target page
+                if progress_msg:
+                    await progress_msg.edit_text("🔞 مرحله 2: دسترسی به صفحه هدف...")
+                
+                # Add referer for the actual request
+                headers['Referer'] = 'https://rule34.xxx/'
+                
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 403:
+                        # Try alternative methods
+                        if progress_msg:
+                            await progress_msg.edit_text("🔞 مرحله 3: تلاش با روش‌های جایگزین...")
+                        
+                        # Method 2: Try with different user agents
+                        alternative_agents = [
+                            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
+                        ]
+                        
+                        for agent in alternative_agents:
+                            headers['User-Agent'] = agent
+                            await asyncio.sleep(random.uniform(1, 3))
+                            
+                            async with session.get(url, headers=headers) as retry_resp:
+                                if retry_resp.status == 200:
+                                    response = retry_resp
+                                    break
+                        else:
+                            # Method 3: Try API endpoint if exists
+                            post_id = None
+                            import re
+                            id_match = re.search(r'id=(\d+)', url)
+                            if id_match:
+                                post_id = id_match.group(1)
+                                api_url = f'https://rule34.xxx/index.php?page=dapi&s=post&q=index&id={post_id}'
+                                
+                                if progress_msg:
+                                    await progress_msg.edit_text("🔞 مرحله 4: تلاش از طریق API...")
+                                
+                                async with session.get(api_url, headers=headers) as api_resp:
+                                    if api_resp.status == 200:
+                                        api_content = await api_resp.text()
+                                        # Parse XML response to get file URL
+                                        file_url_match = re.search(r'file_url="([^"]+)"', api_content)
+                                        if file_url_match:
+                                            media_url = file_url_match.group(1)
+                                            if progress_msg:
+                                                await progress_msg.edit_text("✅ فایل پیدا شد! در حال دانلود...")
+                                            return await self.download_file(media_url, progress_msg, user_name)
+                    
+                    if response.status != 200:
+                        raise Exception(f"HTTP {response.status}")
+                    
+                    page_content = await response.text()
+                    print(f"📄 Rule34 page content length: {len(page_content)}")
+                    
+                    # Parse the page to find media URLs
+                    import re
+                    media_url = None
+                    
+                    # Look for various media URL patterns
+                    media_patterns = [
+                        r'<img[^>]*src=["\']([^"\']*(?:\.jpg|\.jpeg|\.png|\.gif|\.webm|\.mp4)[^"\']*)["\'][^>]*(?:id=["\']image["\']|class=["\'].*image.*["\'])',
+                        r'<video[^>]*src=["\']([^"\']+)["\']',
+                        r'<source[^>]*src=["\']([^"\']+)["\']',
+                        r'"file_url":\s*"([^"]+)"',
+                        r'"sample_url":\s*"([^"]+)"',
+                        r'https://[^"\s]*rule34[^"\s]*\.(?:jpg|jpeg|png|gif|webm|mp4)',
+                        r'https://[^"\s]*\.(?:jpg|jpeg|png|gif|webm|mp4)',
+                    ]
+                    
+                    for i, pattern in enumerate(media_patterns):
+                        matches = re.findall(pattern, page_content, re.IGNORECASE)
+                        if matches:
+                            # Filter out thumbnails and small images
+                            for match in matches:
+                                if any(skip in match.lower() for skip in ['thumb', 'preview', 'small', 'icon', 'avatar']):
+                                    continue
+                                media_url = match
+                                print(f"✅ Found media URL with pattern {i+1}: {media_url}")
+                                break
+                            if media_url:
+                                break
+                    
+                    if not media_url:
+                        # Last resort: try yt-dlp with session cookies
+                        if progress_msg:
+                            await progress_msg.edit_text("🔞 تلاش نهایی با yt-dlp...")
+                        
+                        # Export cookies for yt-dlp
+                        cookies_str = ""
+                        for cookie in jar:
+                            cookies_str += f"{cookie.key}={cookie.value}; "
+                        
+                        # Try yt-dlp with cookies
+                        try:
+                            return await self.download_video_with_ytdlp_cookies(url, cookies_str, progress_msg, user_name)
+                        except Exception as e:
+                            print(f"⚠️ yt-dlp with cookies failed: {e}")
+                        
+                        if progress_msg:
+                            await progress_msg.edit_text(
+                                f"🔞 متأسفانه نتوانستم محافظت‌های Rule34 را دور بزنم.\n\n"
+                                f"🔗 لینک اصلی:\n{url}\n\n"
+                                f"💡 راه‌های جایگزین:\n"
+                                f"• لینک را در مرورگر باز کنید\n"
+                                f"• از VPN استفاده کنید\n"
+                                f"• کپچا را حل کنید و دوباره تلاش کنید"
+                            )
+                            return None, None, None
+                    
+                    # Clean up the URL
+                    if media_url.startswith('//'):
+                        media_url = 'https:' + media_url
+                    elif media_url.startswith('/'):
+                        media_url = 'https://rule34.xxx' + media_url
+                    
+                    if progress_msg:
+                        await progress_msg.edit_text("⏬ در حال دانلود فایل از Rule34...")
+                    
+                    # Download the media file
+                    return await self.download_file(media_url, progress_msg, user_name)
+                    
+        except Exception as e:
+            error_msg = f"خطا در دور زدن محافظت‌های Rule34: {str(e)}"
+            print(f"❌ {error_msg}")
+            if progress_msg:
+                try:
+                    await progress_msg.edit_text(
+                        f"🔞 خطا در پردازش Rule34.\n\n"
+                        f"🔗 لینک اصلی:\n{url}\n\n"
+                        f"💡 لطفاً لینک را در مرورگر باز کنید و کپچا را حل کنید."
+                    )
+                    return None, None, None
+                except:
+                    pass
+            raise Exception(error_msg)
+    
+    async def download_video_with_ytdlp_cookies(self, url: str, cookies: str, progress_msg=None, user_name: str = "") -> tuple:
+        """Download video using yt-dlp with cookies"""
+        temp_dir = tempfile.gettempdir()
+        
+        # Write cookies to temporary file
+        import tempfile
+        cookie_file = os.path.join(temp_dir, f"cookies_{int(time.time())}.txt")
+        
+        try:
+            with open(cookie_file, 'w') as f:
+                # Convert cookies to Netscape format
+                f.write("# Netscape HTTP Cookie File\n")
+                for cookie_pair in cookies.split(';'):
+                    if '=' in cookie_pair:
+                        key, value = cookie_pair.strip().split('=', 1)
+                        f.write(f"rule34.xxx\tTRUE\t/\tFALSE\t0\t{key}\t{value}\n")
+            
+            # yt-dlp options with cookies
+            ydl_opts = {
+                'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
+                'format': 'best',
+                'noplaylist': True,
+                'quiet': True,
+                'no_warnings': True,
+                'socket_timeout': 30,
+                'retries': 3,
+                'cookiefile': cookie_file,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Referer': 'https://rule34.xxx/',
+                },
+            }
+            
+            # Run yt-dlp
+            loop = asyncio.get_event_loop()
+            
+            def download_sync():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    title = info.get('title', 'rule34_video')
+                    
+                    safe_title = re.sub(r'[<>:"/\\|?*]', '_', title)
+                    if len(safe_title) > 100:
+                        safe_title = safe_title[:100]
+                    
+                    ydl_opts['outtmpl'] = os.path.join(temp_dir, f'{safe_title}.%(ext)s')
+                    
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl_download:
+                        ydl_download.download([url])
+                    
+                    return safe_title, info.get('filesize', 0)
+            
+            safe_title, estimated_size = await asyncio.wait_for(
+                loop.run_in_executor(None, download_sync), 
+                timeout=300
+            )
+            
+            # Find downloaded file
+            downloaded_files = []
+            for file in os.listdir(temp_dir):
+                if safe_title in file and not file.endswith('.part'):
+                    downloaded_files.append(file)
+            
+            if not downloaded_files:
+                raise Exception("فایل دانلود شده پیدا نشد")
+            
+            downloaded_file = max(downloaded_files, key=lambda f: os.path.getctime(os.path.join(temp_dir, f)))
+            file_path = os.path.join(temp_dir, downloaded_file)
+            file_size = os.path.getsize(file_path)
+            
+            return file_path, downloaded_file, file_size
+            
+        finally:
+            # Clean up cookie file
+            try:
+                if os.path.exists(cookie_file):
+                    os.unlink(cookie_file)
+            except:
+                pass
     
     async def download_qombol_content(self, url: str, progress_msg=None, user_name: str = "") -> tuple:
         """Download content from qombol.com by extracting video URLs from the page"""
