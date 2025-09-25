@@ -34,6 +34,8 @@ TELEGRAM_API_HASH = os.getenv('TELEGRAM_API_HASH')
 # Reddit API credentials
 REDDIT_CLIENT_ID = os.getenv('REDDIT_CLIENT_ID')
 REDDIT_CLIENT_SECRET = os.getenv('REDDIT_CLIENT_SECRET')
+# Optional: allow override of redirect URI via environment; default matches Reddit app config
+REDDIT_REDIRECT_URI = os.getenv('REDDIT_REDIRECT_URI', 'http://localhost:8080')
 
 # Authorization settings
 _auth_users_raw = os.getenv('AUTHORIZED_USERS', '').strip()

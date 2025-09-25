@@ -29,6 +29,27 @@ class RedditAuth:
     async def exchange_code_for_token(self, code: str) -> bool:
         """Exchange authorization code for access token"""
         try:
+            # Accept both raw code and full redirect URL pasted by the user
+            raw_input = (code or "").strip()
+            # If the input is a full URL, parse out the `code` param
+            if raw_input.startswith("http://") or raw_input.startswith("https://"):
+                try:
+                    parsed = urllib.parse.urlparse(raw_input)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    url_code = qs.get("code", [""])[0]
+                    if url_code:
+                        code = url_code
+                except Exception:
+                    pass
+            # If the input contains `code=...` (but not necessarily a full URL), parse it
+            elif "code=" in raw_input:
+                try:
+                    pseudo_qs = urllib.parse.parse_qs(raw_input.replace("?", "&"))
+                    qs_code = pseudo_qs.get("code", [""])[0]
+                    if qs_code:
+                        code = qs_code
+                except Exception:
+                    pass
             # Clean the code - remove any URL parameters if present
             if '?' in code:
                 code = code.split('?')[0]

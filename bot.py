@@ -25,6 +25,7 @@ from config import (
     ALLOW_ALL,
     REDDIT_CLIENT_ID,
     REDDIT_CLIENT_SECRET,
+    REDDIT_REDIRECT_URI,
 )
 try:
     from uploader import upload_to_bridge
@@ -114,7 +115,7 @@ class TelegramDownloadBot:
         # Initialize Reddit authentication
         self.reddit_auth = None
         if RedditAuth and REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET:
-            self.reddit_auth = RedditAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)
+            self.reddit_auth = RedditAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_REDIRECT_URI)
         
         # Store pending Reddit authentications
         self.pending_reddit_auth = {}
@@ -241,8 +242,8 @@ https://example.com/image.jpg
             "2️⃣ وارد حساب Reddit خود شوید\n"
             "3️⃣ روی \"Allow\" کلیک کنید\n"
             "4️⃣ بعد از redirect، کد موجود در URL را کپی کنید\n"
-            "5️⃣ کد را برای من ارسال کنید\n\n"
-            "💡 اگر به صفحه خطا رسیدید، فقط کد موجود در آدرس مرورگر را کپی کنید",
+            "5️⃣ کد را برای من ارسال کنید (یا می‌توانید کل آدرس صفحه را هم ارسال کنید)\n\n"
+            "💡 اگر به صفحه خطا رسیدید، فقط کد موجود در آدرس مرورگر را کپی کنید (یا کل آدرس را بفرستید)",
             reply_markup=reply_markup
         )
     
@@ -285,8 +286,10 @@ https://example.com/image.jpg
             )
             return
         
-        # Check if this might be a Reddit authorization code
-        if user.id in self.pending_reddit_auth and len(url) > 10 and not url.startswith('http'):
+        # Check if this might be a Reddit authorization code (raw code or full redirect URL)
+        if user.id in self.pending_reddit_auth and (
+            (len(url) > 10 and not url.startswith('http')) or ('code=' in url)
+        ):
             await self.handle_reddit_auth_code(update, url)
             return
         
