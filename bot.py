@@ -383,6 +383,10 @@ https://example.com/image.jpg
                 file_path, filename, file_size = await self.download_file(url, processing_msg, user.first_name)
             print(f"✅ File downloaded successfully: {filename} ({self.format_file_size(file_size)})")
             
+            # Check if file is suspiciously small (likely an error file)
+            if file_size < 1024:  # Less than 1KB
+                raise Exception(f"فایل دانلود شده خیلی کوچک است ({self.format_file_size(file_size)}). احتمالاً خطا رخ داده است.")
+            
             # No file size limit - removed all restrictions
             
             # Upload with progress tracking - detect file type
@@ -1267,6 +1271,25 @@ https://example.com/image.jpg
                     'Connection': 'keep-alive',
                     'Upgrade-Insecure-Requests': '1',
                     'Referer': 'https://rule34.xxx/',
+                },
+            })
+        
+        # Special handling for Redtube and similar sites
+        elif any(site in url.lower() for site in ['redtube.com', 'tube8.com', 'youporn.com', 'spankbang.com']):
+            ydl_opts.update({
+                'format': 'best[height<=1080]/best',  # Allow higher quality for these sites
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Sec-Fetch-User': '?1',
+                    'Cache-Control': 'max-age=0',
                 },
             })
         
