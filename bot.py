@@ -284,7 +284,7 @@ https://example.com/image.jpg
             return
         
         # Check if this might be a Reddit authorization code
-        if user_id in self.pending_reddit_auth and len(url) > 10 and not url.startswith('http'):
+        if user.id in self.pending_reddit_auth and len(url) > 10 and not url.startswith('http'):
             await self.handle_reddit_auth_code(update, url)
             return
         
