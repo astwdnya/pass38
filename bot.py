@@ -1197,6 +1197,8 @@ https://example.com/image.jpg
     
     async def download_video_with_ytdlp(self, url: str, progress_msg=None, user_name: str = "") -> tuple:
         """Download video from video sites using yt-dlp"""
+        import tempfile
+        import time
         temp_dir = tempfile.gettempdir()
         
         # Progress hook for yt-dlp
@@ -1280,7 +1282,6 @@ https://example.com/image.jpg
         # Special handling for Redtube (broken extractor, needs cookies)
         elif 'redtube.com' in url.lower():
             # Create temporary cookies file for Redtube
-            import tempfile
             cookies_content = """# Netscape HTTP Cookie File
 .redtube.com	TRUE	/	FALSE	1999999999	age_verified	1
 .redtube.com	TRUE	/	FALSE	1999999999	language	en
